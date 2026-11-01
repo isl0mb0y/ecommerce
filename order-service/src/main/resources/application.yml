@@ -1,0 +1,24 @@
+server:
+  port: 8082
+  error:
+    include-message: always
+
+spring:
+  application:
+    name: order-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/orders_db
+    username: shop
+    password: shop
+  jpa:
+    hibernate:
+      ddl-auto: update
+  rabbitmq:
+    host: localhost
+
+catalog:
+  base-url: http://localhost:8081
+
+logging:
+  level:
+    com.shop: INFO
