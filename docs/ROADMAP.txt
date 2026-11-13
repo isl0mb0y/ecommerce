@@ -1,0 +1,102 @@
+E-COMMERCE MICROSERVICES — O'RGANISH REJASI
+============================================
+
+LOYIHA
+------
+- Maqsad: microservice architecture'ni lokalda, minimal e-commerce loyiha ustida amalda o'rganish
+- Stack: Java 21, Spring Boot 3.3.x, Maven multi-module (parent pom + child pom'lar)
+- "Pure microservice": shared/common module yo'q, child'lar bir-biriga Maven dependency emas
+- Service'lar:
+    catalog-service   :8081   catalog_db    product'lar, narx, stock
+    order-service     :8082   orders_db     order yaratish, status (CREATED / PAID / CANCELLED)
+    payment-service   :8083   payments_db   mock to'lov (2s, 80% success / 20% fail)
+- Infra: bitta Postgres container (3 ta database), RabbitMQ (MVP'da)
+- Communication:
+    order -> catalog      sync  (REST, GET /api/products/{id})
+    order -> payment      async (order.created)
+    payment -> order      async (payment.succeeded / payment.failed)
+    payment -> catalog    async (payment.succeeded -> stock -= qty)
+- MVP prompt: mvp-prompt.md
+- Gateway MVP'ga kirmaydi — keyin o'zim bosqichma-bosqich qo'shaman
+
+
+REJA (10 BOSQICH)
+-----------------
+
+ 1. MVP (RabbitMQ)                                   <- HOZIR SHU YERDA
+    - service boundaries, DB per service, no shared module
+    - sync REST vs async broker farqi
+    - savol: nega order_item.product_id'da foreign key yo'q?
+
+ 2. API Gateway
+    - spring-cloud-starter-gateway: routing, CORS bir joyda
+    - rate limiting (Redis, RequestRateLimiter)
+    - frontend faqat :8080 ni biladi, service'lardan CORS olib tashlanadi
+
+ 3. Resilience
+    - timeout: RestClient connect/read timeout
+    - retry: Resilience4j @Retry — faqat idempotent chaqiruvlarga (GET ha, POST yo'q)
+    - circuit breaker: @CircuitBreaker order -> catalog, OPEN/HALF_OPEN'ni actuator'da kuzatish
+    - bulkhead: catalog chaqiruvlari uchun alohida thread pool
+    - fallback / fail-fast qarori (graceful degradation)
+    - mashq: catalog'ga Thread.sleep(10s) qo'yib, order-service thread pool to'lishini ko'rish
+
+ 4. Data consistency  (senior'ni middle'dan ajratadigan bo'lim)
+    - idempotent consumer: processed_events(event_id) jadvali — duplicate event'da stock ikki marta kamaymasin
+    - outbox pattern: order saqlash + event yuborish orasidagi crash (outbox jadvali + poller yoki Debezium)
+    - saga (choreography): stock reservation -> OrderCreated -> StockReserved -> PaymentSucceeded, fail bo'lsa StockReleased
+    - optimistic locking: Product.stock'da @Version
+    - nega distributed transaction (2PC) ishlatilmaydi
+
+ 5. Observability
+    - structured (JSON) logging + correlation ID: gateway X-Request-Id -> MDC -> broker header
+    - distributed tracing: Micrometer Tracing + OpenTelemetry -> Jaeger/Tempo
+    - metrics: Actuator + Prometheus + Grafana (circuit breaker holati, consumer lag, HTTP p99)
+    - health checks: readiness vs liveness
+
+ 6. Kafka & event-driven design
+    - RabbitMQ -> Kafka migration (consumer group, partition, orderId key, offset, replay)
+    - dead-letter topic + retry topic
+    - schema evolution: field qo'shganda eski consumer buzilmasligi (additive only / Schema Registry)
+    - event vs command vs query
+    - CQRS: product.updated -> order-service'da read model (denormalizatsiya)
+    - event sourcing — faqat tushunish, qilinmaydi
+
+ 7. Auth & API design
+    - JWT gateway'da verify, X-User-Id pastga; service'lar orasida trust modeli
+    - API versioning (/api/v1/), backward compatibility
+    - internal API'ni gRPC'ga o'tkazish (order -> catalog), protobuf contract-first
+    - OpenAPI (springdoc) har service'da
+
+ 8. Testing
+    - unit -> Testcontainers (Postgres, broker) integration test
+    - contract testing (Spring Cloud Contract yoki Pact) — microservice'da eng muhim test turi
+    - consumer-driven contract, nega end-to-end test'ga ishonib bo'lmaydi
+
+ 9. Deployment & operations
+    - Docker Compose -> Kubernetes (kind/minikube): Deployment, Service, ConfigMap, Secret, probe'lar
+    - config externalization (12-factor)
+    - service discovery: K8s DNS vs Eureka
+    - rolling update, zero-downtime, expand/contract DB migration (Flyway)
+    - graceful shutdown: in-flight message yakunlanishi
+
+10. Design & trade-off savollari
+    - monolith -> microservice qachon? modular monolith nima?
+    - service granularity: nega catalog va inventory bitta, order va payment alohida?
+    - shared DB anti-pattern, distributed monolith belgilari
+    - sync chain xavfi (A -> B -> C -> D)
+    - Conway's law, team topology
+
+
+KELISHUVLAR
+-----------
+- Eng muhim uchlik: 3 -> 4 -> 5 (resilience, data consistency, observability)
+- Har bosqichdan keyin bitta "buzib ko'rish" mashqi:
+    service'ni o'chirish, duplicate event yuborish, DB'ni to'xtatish, payment'ni sekinlashtirish
+- Idempotency/outbox'ni avval Rabbit'da qilish, keyin Kafka'ga o'tish
+- MVP commit/push bo'lgach -> Gateway prompt'ini so'rash
+
+
+HOLAT (2026-11-09)
+------------------
+- 1-bosqich: MVP mvp-prompt.md dan boshidan ko'tarilmoqda, keyin initial commit + push
