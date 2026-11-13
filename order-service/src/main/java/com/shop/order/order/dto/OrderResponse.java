@@ -1,10 +1,12 @@
-package com.shop.order.order;
+package com.shop.order.order.dto;
 
 import java.time.Instant;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import com.shop.order.order.Order;
+import com.shop.order.order.OrderStatus;
 
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public record OrderResponse(Long id, Long userId, OrderStatus status, long totalInCents, Instant createdAt,
@@ -14,7 +16,7 @@ public record OrderResponse(Long id, Long userId, OrderStatus status, long total
     public record ItemResponse(Long id, Long productId, int quantity, long priceInCents) {
     }
 
-    static OrderResponse from(Order order) {
+    public static OrderResponse from(Order order) {
         List<ItemResponse> items = order.getItems().stream()
                 .map(item -> new ItemResponse(item.getId(), item.getProductId(), item.getQuantity(),
                         item.getPriceInCents()))

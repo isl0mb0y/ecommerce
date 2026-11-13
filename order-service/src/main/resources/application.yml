@@ -28,4 +28,26 @@ logging:
   level:
     com.shop: INFO
 
+resilience4j:
+  retry:
+    instances:
+      catalog:
+        max-attempts: 3
+        wait-duration: 200ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - org.springframework.web.client.ResourceAccessException
+        ignore-exceptions:
+          - org.springframework.web.client.HttpClientErrorException
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, retries, retryevents
+
+
+
+
 

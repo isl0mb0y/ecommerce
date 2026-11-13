@@ -1,6 +1,9 @@
-package com.shop.order.order;
+package com.shop.order.messaging;
 
-import com.shop.order.messaging.RabbitConfig;
+import com.shop.order.messaging.event.PaymentFailed;
+import com.shop.order.messaging.event.PaymentSucceeded;
+import com.shop.order.order.OrderService;
+import com.shop.order.order.OrderStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitHandler;

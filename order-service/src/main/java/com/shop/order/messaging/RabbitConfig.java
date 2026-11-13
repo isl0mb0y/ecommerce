@@ -1,7 +1,7 @@
 package com.shop.order.messaging;
 
-import com.shop.order.order.PaymentFailed;
-import com.shop.order.order.PaymentSucceeded;
+import com.shop.order.messaging.event.PaymentFailed;
+import com.shop.order.messaging.event.PaymentSucceeded;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.MessageProperties;

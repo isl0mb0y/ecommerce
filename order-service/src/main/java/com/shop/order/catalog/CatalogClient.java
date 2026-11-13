@@ -1,20 +1,21 @@
 package com.shop.order.catalog;
 
-import java.util.Optional;
-
+import io.github.resilience4j.retry.annotation.Retry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.server.ResponseStatusException;
+
+import java.util.Optional;
 
 @Component
 public class CatalogClient {
 
     private final RestClient restClient;
+    private static final Logger log = LoggerFactory.getLogger(CatalogClient.class);
 
     public CatalogClient(
             RestClient.Builder builder,
@@ -31,7 +32,9 @@ public class CatalogClient {
                 .build();
     }
 
+    @Retry(name = "catalog")
     public Optional<ProductResponse> findProduct(Long id) {
+        log.info("Calling catalog-service for product {}", id);
         try {
             return Optional.ofNullable(restClient.get()
                     .uri("/api/products/{id}", id)
@@ -39,8 +42,6 @@ public class CatalogClient {
                     .body(ProductResponse.class));
         } catch (HttpClientErrorException.NotFound e) {
             return Optional.empty();
-        } catch (RestClientException e) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Catalog service unavailable", e);
         }
     }
 }
