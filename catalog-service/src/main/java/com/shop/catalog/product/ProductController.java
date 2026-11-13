@@ -2,6 +2,7 @@ package com.shop.catalog.product;
 
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,6 +17,9 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/products")
 public class ProductController {
 
+    @Value("${chaos.delay-ms:0}")
+    private long delayMs;
+
     private final ProductRepository productRepository;
 
     public ProductController(ProductRepository productRepository) {
@@ -28,7 +32,8 @@ public class ProductController {
     }
 
     @GetMapping("/{id}")
-    public ProductResponse get(@PathVariable Long id) {
+    public ProductResponse get(@PathVariable Long id) throws InterruptedException {
+        if (delayMs > 0 ) Thread.sleep(delayMs);
         return productRepository.findById(id)
                 .map(ProductResponse::from)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product " + id + " not found"));

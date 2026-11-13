@@ -2,6 +2,9 @@ server:
   port: 8082
   error:
     include-message: always
+  tomcat:
+    threads:
+      max: 10   # learning: small pool to reproduce thread starvation
 
 spring:
   application:
@@ -18,7 +21,11 @@ spring:
 
 catalog:
   base-url: http://localhost:8081
+  connect-timeout-ms: 500
+  read-timeout-ms: 2000
 
 logging:
   level:
     com.shop: INFO
+
+

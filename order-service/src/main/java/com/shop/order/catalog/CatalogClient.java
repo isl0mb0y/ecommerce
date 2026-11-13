@@ -4,6 +4,7 @@ import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
@@ -15,8 +16,19 @@ public class CatalogClient {
 
     private final RestClient restClient;
 
-    public CatalogClient(RestClient.Builder builder, @Value("${catalog.base-url}") String baseUrl) {
-        this.restClient = builder.baseUrl(baseUrl).build();
+    public CatalogClient(
+            RestClient.Builder builder,
+            @Value("${catalog.base-url}") String baseUrl,
+            @Value("${catalog.connect-timeout-ms:500}") int connectionTimeoutMs,
+            @Value("${catalog.read-timeout-ms:2000}") int readTimeoutMs
+            ) {
+        var requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(connectionTimeoutMs);
+        requestFactory.setReadTimeout(readTimeoutMs);
+        this.restClient = builder
+                .baseUrl(baseUrl)
+                .requestFactory(requestFactory)
+                .build();
     }
 
     public Optional<ProductResponse> findProduct(Long id) {
