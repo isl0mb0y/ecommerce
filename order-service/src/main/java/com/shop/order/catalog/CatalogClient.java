@@ -1,5 +1,6 @@
 package com.shop.order.catalog;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +34,7 @@ public class CatalogClient {
     }
 
     @Retry(name = "catalog")
+    @CircuitBreaker(name = "catalog")
     public Optional<ProductResponse> findProduct(Long id) {
         log.info("Calling catalog-service for product {}", id);
         try {

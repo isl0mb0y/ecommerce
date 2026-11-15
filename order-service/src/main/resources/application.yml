@@ -40,12 +40,34 @@ resilience4j:
           - org.springframework.web.client.ResourceAccessException
         ignore-exceptions:
           - org.springframework.web.client.HttpClientErrorException
+  circuitbreaker:
+    instances:
+      catalog:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: true
+        register-health-indicator: true
+        record-exceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
+        ignore-exceptions:
+          - org.springframework.web.client.HttpClientErrorException
+
 
 management:
+  health:
+    circuitbreakers:
+      enabled: true
   endpoints:
+    health:
+      show-details: always
     web:
       exposure:
-        include: health, retries, retryevents
+        include: health, retries, retryevents, circuitbreakers, circuitbreakerevents
 
 
 
