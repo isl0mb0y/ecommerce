@@ -11,14 +11,32 @@ spring:
           uri: http://localhost:8081
           predicates:
             - Path=/api/products/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: catalogCb
+                fallbackUri: forward:/fallback/catalog
+
         - id: orders
           uri: http://localhost:8082
           predicates:
             - Path=/api/orders/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: orderCb
+                fallbackUri: forward:/fallback/orders
+
         - id: payments
           uri: http://localhost:8083
           predicates:
             - Path=/api/payments/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: paymentCb
+                fallbackUri: forward:/fallback/payments
+
       globalcors:
         cors-configurations:
           '[/**]':
@@ -31,7 +49,21 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, gateway
+        include: health, gateway, circuitbreakers
   endpoint:
     gateway:
       enabled: true
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 2
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 3s
