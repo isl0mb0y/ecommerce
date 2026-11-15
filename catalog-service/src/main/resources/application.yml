@@ -21,4 +21,4 @@ logging:
     com.shop: INFO
 
 chaos:
-  delay-ms: 10000
+  delay-ms: 1500

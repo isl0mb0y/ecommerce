@@ -1,5 +1,6 @@
 package com.shop.order.api;
 
+import io.github.resilience4j.bulkhead.BulkheadFullException;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,5 +23,11 @@ public class ApiExceptionHandler {
     public ResponseEntity<Map<String, String>> circuitOpen(CallNotPermittedException e) {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(Map.of("error", "Catalog service unavailable (circuit open)"));
+    }
+
+    @ExceptionHandler(BulkheadFullException.class)
+    public ResponseEntity<Map<String, String>> bulkheadFull(BulkheadFullException e) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(Map.of("error", "Catalog service busy, please retry"));
     }
 }

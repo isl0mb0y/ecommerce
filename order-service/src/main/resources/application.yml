@@ -55,6 +55,12 @@ resilience4j:
           - org.springframework.web.client.HttpServerErrorException
         ignore-exceptions:
           - org.springframework.web.client.HttpClientErrorException
+          - io.github.resilience4j.bulkhead.BulkheadFullException
+  bulkhead:
+    instances:
+      catalog:
+        max-concurrent-calls: 3
+        max-wait-duration: 0
 
 
 management:
@@ -67,7 +73,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, retries, retryevents, circuitbreakers, circuitbreakerevents
+        include: health, retries, retryevents, circuitbreakers, circuitbreakerevents, bulkheads, bulkheadevents
 
 
 
