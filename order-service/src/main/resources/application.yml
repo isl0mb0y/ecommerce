@@ -36,8 +36,7 @@ resilience4j:
         wait-duration: 200ms
         enable-exponential-backoff: true
         exponential-backoff-multiplier: 2
-        retry-exceptions:
-          - org.springframework.web.client.ResourceAccessException
+        retry-exception-predicate: com.shop.order.config.CatalogRetryPredicate
         ignore-exceptions:
           - org.springframework.web.client.HttpClientErrorException
   circuitbreaker:
@@ -62,9 +61,10 @@ management:
   health:
     circuitbreakers:
       enabled: true
-  endpoints:
+  endpoint:
     health:
       show-details: always
+  endpoints:
     web:
       exposure:
         include: health, retries, retryevents, circuitbreakers, circuitbreakerevents
