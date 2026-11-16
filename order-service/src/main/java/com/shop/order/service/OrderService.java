@@ -4,21 +4,25 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shop.order.client.catalog.CatalogClient;
 import com.shop.order.client.catalog.dto.ProductResponse;
 import com.shop.order.domain.Order;
+import com.shop.order.domain.OutboxEvent;
 import com.shop.order.messaging.config.RabbitConfig;
 import com.shop.order.messaging.event.OrderCreated;
 import com.shop.order.api.rest.dto.CreateOrderRequest;
 import com.shop.order.api.rest.dto.OrderResponse;
 import com.shop.order.repository.OrderRepository;
 import com.shop.order.domain.OrderStatus;
+import com.shop.order.repository.OutboxEventRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -28,15 +32,19 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final CatalogClient catalogClient;
-    private final RabbitTemplate rabbitTemplate;
+    private final OutboxEventRepository outboxEventRepository;
+    private final ObjectMapper objectMapper;
+    private final TransactionTemplate transactionTemplate;
 
-    public OrderService(OrderRepository orderRepository, CatalogClient catalogClient, RabbitTemplate rabbitTemplate) {
+    public OrderService(OrderRepository orderRepository, CatalogClient catalogClient , OutboxEventRepository outboxEventRepository, ObjectMapper objectMapper, TransactionTemplate transactionTemplate) {
         this.orderRepository = orderRepository;
         this.catalogClient = catalogClient;
-        this.rabbitTemplate = rabbitTemplate;
+        this.outboxEventRepository = outboxEventRepository;
+        this.objectMapper = objectMapper;
+        this.transactionTemplate = transactionTemplate;
     }
 
-    // Not transactional: the order must be committed before OrderCreated is published.
+    // Catalog calls stay outside the transaction; order and outbox row are saved atomically.
     public OrderResponse create(Long userId, CreateOrderRequest request) {
         Order order = new Order(userId);
         mergeQuantities(request).forEach((productId, quantity) -> {
@@ -48,13 +56,22 @@ public class OrderService {
             order.addItem(productId, quantity, product.priceInCents());
         });
 
-        Order saved = orderRepository.save(order);
-
-        OrderCreated event = OrderCreated.from(saved);
-        rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE, RabbitConfig.ORDER_CREATED_KEY, event);
-        log.info("Published {}: {}", RabbitConfig.ORDER_CREATED_KEY, event);
+        Order saved = transactionTemplate.execute(status -> {
+            Order persisted = orderRepository.save(order);
+            OrderCreated event = OrderCreated.from(persisted);
+            outboxEventRepository.save(new OutboxEvent(RabbitConfig.ORDER_CREATED_KEY, toJson(event)));
+            return persisted;
+        });
 
         return OrderResponse.from(saved);
+    }
+
+    private String toJson(Object event) {
+        try {
+            return objectMapper.writeValueAsString(event);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Cannot serialize event", e);
+        }
     }
 
     @Transactional(readOnly = true)
