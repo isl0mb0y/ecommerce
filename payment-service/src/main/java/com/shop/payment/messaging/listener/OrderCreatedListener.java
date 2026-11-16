@@ -53,7 +53,8 @@ public class OrderCreatedListener {
             List<PaymentSucceeded.Item> items = event.items().stream()
                     .map(item -> new PaymentSucceeded.Item(item.productId(), item.quantity()))
                     .toList();
-            PaymentSucceeded result = new PaymentSucceeded(event.orderId(), payment.getId(), items);
+            String eventId = "payment-succeeded-" + payment.getId();
+            PaymentSucceeded result = new PaymentSucceeded(eventId, event.orderId(), payment.getId(), items);
             rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE, RabbitConfig.PAYMENT_SUCCEEDED_KEY, result);
             log.info("Published {}: {}", RabbitConfig.PAYMENT_SUCCEEDED_KEY, result);
         } else {
