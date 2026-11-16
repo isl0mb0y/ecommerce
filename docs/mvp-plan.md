@@ -15,7 +15,7 @@ ecommerce/
 - Each child pom declares its own dependencies and its own spring-boot-maven-plugin so it builds a standalone runnable jar.
 - Each service has its own PostgreSQL database and never touches another service's tables.
 - Each service has its own Dockerfile (multi-stage, eclipse-temurin:21-jre runtime).
-- Package layout: package-by-feature (com.shop.catalog.product, com.shop.order.order, etc.), not by layer.
+- Package layout: package-by-feature (com.shop.catalog.product, com.shop.order.repository, etc.), not by layer.
 - Use Java records for DTOs and events. Use Lombok only if needed for JPA entities.
 - No API gateway, no service discovery, no auth, no security dependency. Frontend/Postman calls services directly on their ports. User identity is passed as an X-User-Id header, read as a plain Long.
 

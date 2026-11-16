@@ -1,6 +1,6 @@
 package com.shop.order.messaging.event;
 
-import com.shop.order.order.Order;
+import com.shop.order.domain.Order;
 
 import java.util.List;
 
