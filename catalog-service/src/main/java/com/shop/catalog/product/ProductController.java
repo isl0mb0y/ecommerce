@@ -2,6 +2,8 @@ package com.shop.catalog.product;
 
 import java.util.List;
 
+import com.shop.catalog.product.dto.CreateProductRequest;
+import com.shop.catalog.product.dto.ProductResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;

@@ -1,4 +1,4 @@
-package com.shop.payment.payment;
+package com.shop.payment.messaging.event;
 
 import java.util.List;
 

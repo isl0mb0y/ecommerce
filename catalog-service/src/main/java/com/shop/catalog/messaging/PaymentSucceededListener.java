@@ -1,6 +1,7 @@
-package com.shop.catalog.product;
+package com.shop.catalog.messaging;
 
-import com.shop.catalog.messaging.RabbitConfig;
+import com.shop.catalog.messaging.event.PaymentSucceeded;
+import com.shop.catalog.product.ProductRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;

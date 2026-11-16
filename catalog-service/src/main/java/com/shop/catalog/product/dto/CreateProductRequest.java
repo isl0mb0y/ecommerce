@@ -1,4 +1,4 @@
-package com.shop.catalog.product;
+package com.shop.catalog.product.dto;
 
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;

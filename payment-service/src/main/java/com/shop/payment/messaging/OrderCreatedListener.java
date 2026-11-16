@@ -1,9 +1,12 @@
-package com.shop.payment.payment;
+package com.shop.payment.messaging;
 
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
-import com.shop.payment.messaging.RabbitConfig;
+import com.shop.payment.messaging.event.OrderCreated;
+import com.shop.payment.messaging.event.PaymentFailed;
+import com.shop.payment.messaging.event.PaymentSucceeded;
+import com.shop.payment.payment.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
