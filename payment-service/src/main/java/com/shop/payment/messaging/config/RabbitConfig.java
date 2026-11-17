@@ -14,24 +14,26 @@ import org.springframework.context.annotation.Configuration;
 public class RabbitConfig {
 
     public static final String EXCHANGE = "shop.events";
-    public static final String ORDER_CREATED_QUEUE = "payment-service.order-created";
-    public static final String ORDER_CREATED_KEY = "order.created";
     public static final String PAYMENT_SUCCEEDED_KEY = "payment.succeeded";
     public static final String PAYMENT_FAILED_KEY = "payment.failed";
+
+    public static final String STOCK_RESERVED_QUEUE = "payment-service.stock-reserved";
+    public static final String STOCK_RESERVED_KEY = "stock.reserved";
 
     @Bean
     TopicExchange shopEventsExchange() {
         return new TopicExchange(EXCHANGE);
     }
 
+
     @Bean
-    Queue orderCreatedQueue() {
-        return new Queue(ORDER_CREATED_QUEUE);
+    Queue stockReservedQueue() {
+        return new Queue(STOCK_RESERVED_QUEUE);
     }
 
     @Bean
-    Binding orderCreatedBinding(Queue orderCreatedQueue, TopicExchange shopEventsExchange) {
-        return BindingBuilder.bind(orderCreatedQueue).to(shopEventsExchange).with(ORDER_CREATED_KEY);
+    Binding stockReservedBinding(Queue stockReservedQueue, TopicExchange shopEventsExchange) {
+        return BindingBuilder.bind(stockReservedQueue).to(shopEventsExchange).with(STOCK_RESERVED_KEY);
     }
 
     // Deserialize into the listener's parameter type and ignore the sender's __TypeId__ header.

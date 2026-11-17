@@ -1,4 +1,4 @@
-package com.shop.catalog.messaging.event;
+package com.shop.catalog.repository;
 
 import com.shop.catalog.domain.ProcessedEvent;
 import org.springframework.data.jpa.repository.JpaRepository;

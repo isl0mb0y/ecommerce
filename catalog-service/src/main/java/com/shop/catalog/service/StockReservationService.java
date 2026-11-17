@@ -1,0 +1,83 @@
+package com.shop.catalog.service;
+
+import com.shop.catalog.domain.ReservationStatus;
+import com.shop.catalog.domain.StockReservation;
+import com.shop.catalog.messaging.config.RabbitConfig;
+import com.shop.catalog.messaging.event.OrderCreated;
+import com.shop.catalog.messaging.event.StockRejected;
+import com.shop.catalog.messaging.event.StockReserved;
+import com.shop.catalog.repository.ProcessedEventRepository;
+import com.shop.catalog.repository.ProductRepository;
+import com.shop.catalog.repository.StockReservationRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@Service
+public class StockReservationService {
+
+    private static final Logger log = LoggerFactory.getLogger(StockReservationService.class);
+
+    private final ProductRepository productRepository;
+    private final StockReservationRepository reservationRepository;
+    private final ProcessedEventRepository processedEventRepository;
+    private final RabbitTemplate rabbitTemplate;
+
+    public StockReservationService(ProductRepository productRepository, StockReservationRepository reservationRepository, ProcessedEventRepository processedEventRepository, RabbitTemplate rabbitTemplate) {
+        this.productRepository = productRepository;
+        this.reservationRepository = reservationRepository;
+        this.processedEventRepository = processedEventRepository;
+        this.rabbitTemplate = rabbitTemplate;
+    }
+
+    @Transactional
+    public void reserve(OrderCreated event) {
+        Long orderId = event.orderId();
+        if (processedEventRepository.markProcessed("order-created-" + orderId) == 0) {
+            log.info("Order {} already handles, skipping", orderId);
+            return;
+        }
+
+        List<OrderCreated.Item> reserved = new ArrayList<>();
+        for (OrderCreated.Item item: event.items()) {
+            if (productRepository.decrementStock(item.productId(), item.quantity()) == 0) {
+                reserved.forEach(r -> productRepository.incrementStock(r.productId(), r.quantity()));
+                StockRejected rejected = new StockRejected("stock-rejected-" + orderId, orderId, "Insufficient stock for product " + item.productId());
+                rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE, RabbitConfig.STOCK_REJECTED_KEY, rejected);
+                log.info("Published {}: {}", RabbitConfig.STOCK_REJECTED_KEY, rejected);
+                return;
+            }
+            reserved.add(item);
+        }
+
+        reserved.forEach(i -> reservationRepository.save(
+                new StockReservation(orderId, i.productId(), i.quantity())));
+        StockReserved result = new StockReserved("stock-reserved-" + orderId, orderId, event.totalInCents());
+        rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE, RabbitConfig.STOCK_RESERVED_KEY, result);
+        log.info("Published {}: {}", RabbitConfig.STOCK_RESERVED_KEY, result);
+    }
+
+    @Transactional
+    public void confirm(Long orderId) {
+        reservationRepository.findByOrderIdAndStatus(orderId, ReservationStatus.RESERVED)
+                .forEach(StockReservation::confirm);
+        log.info("Confirmed reservations for order {}", orderId);
+    }
+
+    @Transactional
+    public void release(Long orderId) {
+        List<StockReservation> reservations =
+                reservationRepository.findByOrderIdAndStatus(orderId, ReservationStatus.RESERVED);
+        for (StockReservation reservation: reservations) {
+            productRepository.incrementStock(reservation.getProductId(), reservation.getQuantity());
+            reservation.release();
+        }
+
+        log.info("Releases {} reservation(s) for order {}", reservations.size(), orderId);
+    }
+}
