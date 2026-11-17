@@ -9,4 +9,5 @@ import java.util.List;
 public interface OutboxEventRepository extends JpaRepository<OutboxEvent, Long> {
 
     List<OutboxEvent> findTop50ByStatusOrderByIdAsc(OutboxStatus status);
+    long countByStatus(OutboxStatus status);
 }
