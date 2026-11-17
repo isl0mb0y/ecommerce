@@ -1,12 +1,18 @@
 package com.shop.catalog.messaging.config;
 
+import com.shop.catalog.filter.RequestIdFilter;
+import org.slf4j.MDC;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.TopicExchange;
+import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
+import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.support.converter.Jackson2JavaTypeMapper;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.boot.autoconfigure.amqp.RabbitTemplateCustomizer;
+import org.springframework.boot.autoconfigure.amqp.SimpleRabbitListenerContainerFactoryConfigurer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -66,5 +72,39 @@ public class RabbitConfig {
         Jackson2JsonMessageConverter converter = new Jackson2JsonMessageConverter();
         converter.setTypePrecedence(Jackson2JavaTypeMapper.TypePrecedence.INFERRED);
         return converter;
+    }
+
+    @Bean
+    RabbitTemplateCustomizer requestIdOnPublish() {
+        return rabbitTemplate -> rabbitTemplate.addBeforePublishPostProcessors(
+                message -> {
+                    String requestId = MDC.get(RequestIdFilter.MDC_KEY);
+                    if (requestId != null) {
+                        message.getMessageProperties().setHeader(RequestIdFilter.HEADER, requestId);
+                    }
+
+                    return message;
+                }
+        );
+    }
+
+    @Bean
+    SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(
+            SimpleRabbitListenerContainerFactoryConfigurer configurer,
+            ConnectionFactory connectionFactory
+    ) {
+        SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
+        configurer.configure(factory, connectionFactory);
+        factory.setAfterReceivePostProcessors(message -> {
+            Object requestId = message.getMessageProperties().getHeader(RequestIdFilter.HEADER);
+            if (requestId != null) {
+                MDC.put(RequestIdFilter.MDC_KEY, requestId.toString());
+            } else {
+                MDC.remove(RequestIdFilter.MDC_KEY);
+            }
+
+            return message;
+        });
+        return factory;
     }
 }

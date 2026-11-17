@@ -2,10 +2,12 @@ package com.shop.order.messaging.publisher;
 
 import com.shop.order.domain.OutboxEvent;
 import com.shop.order.domain.OutboxStatus;
+import com.shop.order.filter.RequestIdFilter;
 import com.shop.order.messaging.config.RabbitConfig;
 import com.shop.order.repository.OutboxEventRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageBuilder;
@@ -35,6 +37,9 @@ public class OutboxPublisher {
     public void publishPending() {
         for (OutboxEvent event: outboxEventRepository.findTop50ByStatusOrderByIdAsc(OutboxStatus.PENDING)) {
             try {
+                if (event.getRequestId() != null) {
+                    MDC.put(RequestIdFilter.MDC_KEY, event.getRequestId());
+                }
                 Message message = MessageBuilder
                         .withBody(event.getPayload().getBytes(StandardCharsets.UTF_8))
                         .setContentType(MessageProperties.CONTENT_TYPE_JSON)
@@ -45,6 +50,8 @@ public class OutboxPublisher {
             } catch (AmqpException e) {
                 logger.warn("Outbox publish failed, will retry: {}", e.getMessage());
                 return;
+            } finally {
+                MDC.remove(RequestIdFilter.MDC_KEY);
             }
         }
     }

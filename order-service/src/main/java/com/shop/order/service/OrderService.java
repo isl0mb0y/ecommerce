@@ -10,6 +10,7 @@ import com.shop.order.client.catalog.CatalogClient;
 import com.shop.order.client.catalog.dto.ProductResponse;
 import com.shop.order.domain.Order;
 import com.shop.order.domain.OutboxEvent;
+import com.shop.order.filter.RequestIdFilter;
 import com.shop.order.messaging.config.RabbitConfig;
 import com.shop.order.messaging.event.OrderCreated;
 import com.shop.order.api.rest.dto.CreateOrderRequest;
@@ -19,6 +20,7 @@ import com.shop.order.domain.OrderStatus;
 import com.shop.order.repository.OutboxEventRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,7 +61,7 @@ public class OrderService {
         Order saved = transactionTemplate.execute(status -> {
             Order persisted = orderRepository.save(order);
             OrderCreated event = OrderCreated.from(persisted);
-            outboxEventRepository.save(new OutboxEvent(RabbitConfig.ORDER_CREATED_KEY, toJson(event)));
+            outboxEventRepository.save(new OutboxEvent(RabbitConfig.ORDER_CREATED_KEY, toJson(event), MDC.get(RequestIdFilter.MDC_KEY)));
             return persisted;
         });
 

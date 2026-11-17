@@ -24,13 +24,16 @@ public class OutboxEvent {
 
     private Instant publishedAt;
 
+    private String requestId;
+
     protected OutboxEvent() {
 
     }
 
-    public OutboxEvent(String routingKey, String payload) {
+    public OutboxEvent(String routingKey, String payload, String requestId) {
         this.routingKey = routingKey;
         this.payload = payload;
+        this.requestId = requestId;
         this.createdAt = Instant.now();
     }
 
@@ -49,5 +52,9 @@ public class OutboxEvent {
 
     public String getPayload() {
         return payload;
+    }
+
+    public String getRequestId() {
+        return requestId;
     }
 }
