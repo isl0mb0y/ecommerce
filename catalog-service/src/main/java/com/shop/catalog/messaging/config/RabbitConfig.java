@@ -76,16 +76,19 @@ public class RabbitConfig {
 
     @Bean
     RabbitTemplateCustomizer requestIdOnPublish() {
-        return rabbitTemplate -> rabbitTemplate.addBeforePublishPostProcessors(
-                message -> {
-                    String requestId = MDC.get(RequestIdFilter.MDC_KEY);
-                    if (requestId != null) {
-                        message.getMessageProperties().setHeader(RequestIdFilter.HEADER, requestId);
-                    }
+        return rabbitTemplate -> {
+            rabbitTemplate.setObservationEnabled(true);
+            rabbitTemplate.addBeforePublishPostProcessors(
+                    message -> {
+                        String requestId = MDC.get(RequestIdFilter.MDC_KEY);
+                        if (requestId != null) {
+                            message.getMessageProperties().setHeader(RequestIdFilter.HEADER, requestId);
+                        }
 
-                    return message;
-                }
-        );
+                        return message;
+                    }
+            );
+        };
     }
 
     @Bean
@@ -95,6 +98,7 @@ public class RabbitConfig {
     ) {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
         configurer.configure(factory, connectionFactory);
+        factory.setObservationEnabled(true);
         factory.setAfterReceivePostProcessors(message -> {
             Object requestId = message.getMessageProperties().getHeader(RequestIdFilter.HEADER);
             if (requestId != null) {

@@ -20,4 +20,12 @@ logging:
   level:
     com.shop: INFO
   pattern:
-    level: "%5p [%X{requestId:-}]"
+    level: "%5p [%X{requestId:-},%X{traceId:-}]"
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: http://localhost:4318/v1/traces
