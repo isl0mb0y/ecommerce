@@ -12,11 +12,12 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     /** Returns the number of updated rows: 0 if the product is missing or has too little stock. */
     @Transactional
     @Modifying
-    @Query("update Product p set p.stock = p.stock - :quantity where p.id = :id and p.stock >= :quantity")
+    @Query("update Product p set p.stock = p.stock - :quantity, p.version = p.version + 1" +
+            " where p.id = :id and p.stock >= :quantity")
     int decrementStock(@Param("id") Long id, @Param("quantity") int quantity);
 
     @Transactional
     @Modifying
-    @Query("update Product p set p.stock = p.stock + :quantity where p.id = :id")
+    @Query("update Product p set p.stock = p.stock + :quantity, p.version = p.version + 1 where p.id = :id")
     int incrementStock(@Param("id") Long id, @Param("quantity") int quantity);
 }

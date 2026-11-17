@@ -1,9 +1,6 @@
 package com.shop.catalog.domain;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 
 @Entity
 public class Product {
@@ -17,6 +14,10 @@ public class Product {
     private long priceInCents;
 
     private int stock;
+
+    @Version
+    @Column(nullable = false, columnDefinition = "bigint default 0")
+    private long version;
 
     protected Product() {
     }
@@ -41,5 +42,9 @@ public class Product {
 
     public int getStock() {
         return stock;
+    }
+
+    public void setPriceInCents(long priceInCents) {
+        this.priceInCents = priceInCents;
     }
 }

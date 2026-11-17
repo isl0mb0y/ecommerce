@@ -8,13 +8,8 @@ import com.shop.catalog.domain.Product;
 import com.shop.catalog.repository.ProductRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
@@ -54,5 +49,14 @@ public class ProductController {
         }
         Product product = new Product(request.name(), request.priceInCents(), request.stock());
         return ProductResponse.from(productRepository.save(product));
+    }
+
+    @PutMapping("/{id}/price")
+    @Transactional
+    public ProductResponse updatePrice(@PathVariable Long id, @RequestParam(name = "price_in_cents") long priceInCents) throws InterruptedException {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        product.setPriceInCents(priceInCents);
+        return ProductResponse.from(product);
     }
 }
