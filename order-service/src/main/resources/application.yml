@@ -24,6 +24,8 @@ catalog:
 logging:
   level:
     com.shop: INFO
+  pattern:
+    level: "%5p [%X{requestId:-}]"
 
 resilience4j:
   retry:

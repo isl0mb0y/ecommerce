@@ -19,6 +19,8 @@ spring:
 logging:
   level:
     com.shop: INFO
+  pattern:
+    level: "%5p [%X{requestId:-}]"
 
 chaos:
   delay-ms: 0

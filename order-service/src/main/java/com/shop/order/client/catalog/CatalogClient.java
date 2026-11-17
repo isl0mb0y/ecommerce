@@ -1,11 +1,13 @@
 package com.shop.order.client.catalog;
 
 import com.shop.order.client.catalog.dto.ProductResponse;
+import com.shop.order.filter.RequestIdFilter;
 import io.github.resilience4j.bulkhead.annotation.Bulkhead;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -32,6 +34,13 @@ public class CatalogClient {
         this.restClient = builder
                 .baseUrl(baseUrl)
                 .requestFactory(requestFactory)
+                .requestInterceptor(((request, body, execution) -> {
+                    String requestId = MDC.get(RequestIdFilter.MDC_KEY);
+                    if (requestId != null) {
+                        request.getHeaders().set(RequestIdFilter.HEADER, requestId);
+                    }
+                    return execution.execute(request, body);
+                }))
                 .build();
     }
 
