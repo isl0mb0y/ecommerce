@@ -1,5 +1,7 @@
 package com.shop.catalog.service;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import com.shop.catalog.domain.ReservationStatus;
 import com.shop.catalog.domain.StockReservation;
 import com.shop.catalog.messaging.config.RabbitConfig;
@@ -39,7 +41,7 @@ public class StockReservationService {
     public void reserve(OrderCreated event) {
         Long orderId = event.orderId();
         if (processedEventRepository.markProcessed("order-created-" + orderId) == 0) {
-            log.info("Order {} already handles, skipping", orderId);
+            log.info("Order {} already handled, skipping", orderId, kv("orderId", orderId));
             return;
         }
 
@@ -49,7 +51,7 @@ public class StockReservationService {
                 reserved.forEach(r -> productRepository.incrementStock(r.productId(), r.quantity()));
                 StockRejected rejected = new StockRejected("stock-rejected-" + orderId, orderId, "Insufficient stock for product " + item.productId());
                 rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE, RabbitConfig.STOCK_REJECTED_KEY, rejected);
-                log.info("Published {}: {}", RabbitConfig.STOCK_REJECTED_KEY, rejected);
+                log.info("Published {}: {}", RabbitConfig.STOCK_REJECTED_KEY, rejected, kv("orderId", orderId));
                 return;
             }
             reserved.add(item);
@@ -59,14 +61,14 @@ public class StockReservationService {
                 new StockReservation(orderId, i.productId(), i.quantity())));
         StockReserved result = new StockReserved("stock-reserved-" + orderId, orderId, event.totalInCents());
         rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE, RabbitConfig.STOCK_RESERVED_KEY, result);
-        log.info("Published {}: {}", RabbitConfig.STOCK_RESERVED_KEY, result);
+        log.info("Published {}: {}", RabbitConfig.STOCK_RESERVED_KEY, result, kv("orderId", orderId));
     }
 
     @Transactional
     public void confirm(Long orderId) {
         reservationRepository.findByOrderIdAndStatus(orderId, ReservationStatus.RESERVED)
                 .forEach(StockReservation::confirm);
-        log.info("Confirmed reservations for order {}", orderId);
+        log.info("Confirmed reservations for order {}", orderId, kv("orderId", orderId));
     }
 
     @Transactional
@@ -78,6 +80,6 @@ public class StockReservationService {
             reservation.release();
         }
 
-        log.info("Releases {} reservation(s) for order {}", reservations.size(), orderId);
+        log.info("Released {} reservation(s) for order {}", reservations.size(), orderId, kv("orderId", orderId));
     }
 }

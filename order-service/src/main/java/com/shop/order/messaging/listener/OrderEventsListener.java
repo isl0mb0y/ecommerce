@@ -1,5 +1,7 @@
 package com.shop.order.messaging.listener;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import com.shop.order.messaging.config.RabbitConfig;
 import com.shop.order.messaging.event.PaymentFailed;
 import com.shop.order.messaging.event.PaymentSucceeded;
@@ -26,19 +28,19 @@ public class OrderEventsListener {
 
     @RabbitHandler
     public void onPaymentSucceeded(PaymentSucceeded event) {
-        log.info("Consumed {}: {}", RabbitConfig.PAYMENT_SUCCEEDED_KEY, event);
+        log.info("Consumed {}: {}", RabbitConfig.PAYMENT_SUCCEEDED_KEY, event, kv("orderId", event.orderId()));
         orderService.updateStatus(event.orderId(), OrderStatus.PAID);
     }
 
     @RabbitHandler
     public void onPaymentFailed(PaymentFailed event) {
-        log.info("Consumed {}: {}", RabbitConfig.PAYMENT_FAILED_KEY, event);
+        log.info("Consumed {}: {}", RabbitConfig.PAYMENT_FAILED_KEY, event, kv("orderId", event.orderId()));
         orderService.updateStatus(event.orderId(), OrderStatus.CANCELLED);
     }
 
     @RabbitHandler
     public void onStockRejected(StockRejected event) {
-        log.info("Consumed {}: {}", RabbitConfig.STOCK_REJECTED_KEY, event);
+        log.info("Consumed {}: {}", RabbitConfig.STOCK_REJECTED_KEY, event, kv("orderId", event.orderId()));
         orderService.updateStatus(event.orderId(), OrderStatus.CANCELLED);
     }
 }

@@ -1,5 +1,7 @@
 package com.shop.order.service;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -92,7 +94,7 @@ public class OrderService {
     public void updateStatus(Long orderId, OrderStatus status) {
         orderRepository.findById(orderId).ifPresentOrElse(
                 order -> order.setStatus(status),
-                () -> log.warn("Order {} not found, cannot set status {}", orderId, status));
+                () -> log.warn("Order {} not found, cannot set status {}", orderId, status, kv("orderId", orderId)));
     }
 
     // Lines for the same product are merged so the stock check sees the full quantity.

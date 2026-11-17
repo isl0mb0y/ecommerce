@@ -1,5 +1,7 @@
 package com.shop.payment.messaging.listener;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import java.util.concurrent.ThreadLocalRandom;
 
 import com.shop.payment.domain.Payment;
@@ -30,7 +32,7 @@ public class StockReservedListener {
 
     @RabbitListener(queues = RabbitConfig.STOCK_RESERVED_QUEUE)
     public void onStockReserved(StockReserved event) throws InterruptedException {
-        log.info("Consumed {}: {}", RabbitConfig.STOCK_RESERVED_KEY, event);
+        log.info("Consumed {}: {}", RabbitConfig.STOCK_RESERVED_KEY, event, kv("orderId", event.orderId()));
         // A redelivered event reuses its payment, so the order is never charged twice.
         Payment payment = paymentRepository.findByOrderId(event.orderId()).orElse(null);
         if (payment == null) {
@@ -52,11 +54,11 @@ public class StockReservedListener {
             String eventId = "payment-succeeded-" + payment.getId();
             PaymentSucceeded result = new PaymentSucceeded(eventId, event.orderId(), payment.getId());
             rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE, RabbitConfig.PAYMENT_SUCCEEDED_KEY, result);
-            log.info("Published {}: {}", RabbitConfig.PAYMENT_SUCCEEDED_KEY, result);
+            log.info("Published {}: {}", RabbitConfig.PAYMENT_SUCCEEDED_KEY, result, kv("orderId", event.orderId()));
         } else {
             PaymentFailed result = new PaymentFailed(event.orderId(), "Payment declined");
             rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE, RabbitConfig.PAYMENT_FAILED_KEY, result);
-            log.info("Published {}: {}", RabbitConfig.PAYMENT_FAILED_KEY, result);
+            log.info("Published {}: {}", RabbitConfig.PAYMENT_FAILED_KEY, result, kv("orderId", event.orderId()));
         }
     }
 }

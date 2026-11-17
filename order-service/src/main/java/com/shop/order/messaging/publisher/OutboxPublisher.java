@@ -19,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 @Component
 public class OutboxPublisher {
 
@@ -46,7 +48,7 @@ public class OutboxPublisher {
                         .build();
                 rabbitTemplate.send(RabbitConfig.EXCHANGE, event.getRoutingKey(), message);
                 event.markPublished();
-                logger.info("Published outbox event {} ({})", event.getId(), event.getRoutingKey());
+                logger.info("Published outbox event {} {}", kv("outboxId", event.getId()), kv("routingKey", event.getRoutingKey()));
             } catch (AmqpException e) {
                 logger.warn("Outbox publish failed, will retry: {}", e.getMessage());
                 return;

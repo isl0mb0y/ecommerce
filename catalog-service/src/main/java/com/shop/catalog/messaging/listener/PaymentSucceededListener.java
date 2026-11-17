@@ -1,5 +1,7 @@
 package com.shop.catalog.messaging.listener;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import com.shop.catalog.messaging.config.RabbitConfig;
 import com.shop.catalog.messaging.event.PaymentSucceeded;
 import com.shop.catalog.repository.ProcessedEventRepository;
@@ -25,7 +27,7 @@ public class PaymentSucceededListener {
     @RabbitListener(queues = RabbitConfig.PAYMENT_SUCCEEDED_QUEUE)
     @Transactional
     public void onPaymentSucceeded(PaymentSucceeded event) {
-        log.info("Consumed {}: {}", RabbitConfig.PAYMENT_SUCCEEDED_KEY, event);
+        log.info("Consumed {}: {}", RabbitConfig.PAYMENT_SUCCEEDED_KEY, event, kv("orderId", event.orderId()));
         stockReservationService.confirm(event.orderId());
     }
 }

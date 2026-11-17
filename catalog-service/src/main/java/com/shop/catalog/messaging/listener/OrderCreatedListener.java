@@ -1,5 +1,7 @@
 package com.shop.catalog.messaging.listener;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import com.shop.catalog.messaging.config.RabbitConfig;
 import com.shop.catalog.messaging.event.OrderCreated;
 import com.shop.catalog.service.StockReservationService;
@@ -21,7 +23,7 @@ public class OrderCreatedListener {
 
     @RabbitListener(queues = RabbitConfig.ORDER_CREATED_QUEUE)
     public void onOrderCreated(OrderCreated event) {
-        log.info("Consumed {}: {}", RabbitConfig.ORDER_CREATED_KEY, event);
+        log.info("Consumed {}: {}", RabbitConfig.ORDER_CREATED_KEY, event, kv("orderId", event.orderId()));
         stockReservationService.reserve(event);
     }
 }
