@@ -41,7 +41,7 @@ public class StockReservedListener {
 
     private Payment process(StockReserved event) throws InterruptedException {
         Thread.sleep(2000);
-        PaymentStatus status = false
+        PaymentStatus status = ThreadLocalRandom.current().nextInt(100) < 80
                 ? PaymentStatus.SUCCESS
                 : PaymentStatus.FAILED;
         return paymentRepository.save(new Payment(event.orderId(), event.totalInCents(), status));
