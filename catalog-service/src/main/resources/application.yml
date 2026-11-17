@@ -26,6 +26,16 @@ chaos:
   delay-ms: 0
 
 management:
+  endpoints:
+    web:
+      exposure:
+        include: health, prometheus      # mavjud ro'yxat bo'lsa, oxiriga prometheus qo'shing
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
   tracing:
     sampling:
       probability: 1.0

@@ -78,7 +78,13 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, retries, retryevents, circuitbreakers, circuitbreakerevents, bulkheads, bulkheadevents
+        include: health, retries, retryevents, circuitbreakers, circuitbreakerevents, bulkheads, bulkheadevents, prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 
 
 

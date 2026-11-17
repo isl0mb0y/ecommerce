@@ -55,7 +55,13 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, gateway, circuitbreakers
+        include: health, gateway, circuitbreakers, prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
   endpoint:
     gateway:
       enabled: true
