@@ -21,7 +21,7 @@ Read `docs/LEARNING_LOG.md` first: it says what has already been understood and 
   e.g. `resilience(retry): add Resilience4j retry to catalog client`.
 
 ## Project facts
-- Java 21, Spring Boot 3.3.x, Spring Cloud 2023.0.x, Maven multi-module, package-by-feature,
+- Java 21, Spring Boot 3.3.x, Spring Cloud 2023.0.x, Maven multi-module, package-by-layer (api/rest, client, config, domain, messaging, repository, service),
   no shared module, each service its own DB.
 - api-gateway :8080 · catalog-service :8081 · order-service :8082 · payment-service :8083.
 - Postgres (catalog_db, orders_db, payments_db) + RabbitMQ via docker-compose; services run from IDE.
@@ -31,5 +31,5 @@ Read `docs/LEARNING_LOG.md` first: it says what has already been understood and 
 - Resilience4j 2.2.0 on order-service; retry instance name `catalog`.
 
 ## Where we are
-Step 3 (Resilience): timeouts done; retry added but NOT yet verified — see "Open issue" in
-docs/LEARNING_LOG.md. Then: circuit breaker → bulkhead → gateway circuit breaker + fallback.
+Steps 1–4 are done (MVP, gateway, resilience, data consistency). Next: step 5, observability.
+See docs/LEARNING_LOG.md for what was built and understood in each step.

@@ -38,55 +38,117 @@ Owner wrote it himself in IntelliJ, step by step:
 
 Break-it: catalog stopped → gateway returns 500 Connection refused. Noted as motivation for step 3.
 
-## Step 3 — Resilience (in progress)
+## Step 3 — Resilience (done, committed)
 
-### 3.1 Seeing the problem (done)
-- Catalog has a chaos toggle `chaos.delay-ms` (0 = off); set to 10000 to simulate slowness.
-- order-service `server.tomcat.threads.max` lowered (5, now 10) to reproduce starvation with
-  10 parallel requests.
-- Owner ran 10 parallel POST /api/orders + 1 GET /api/orders/1 and **saw**:
-  - POSTs queue in waves (pool=5: five at 2s, five at 4s).
-  - GET /orders/1 (no catalog dependency) waited ~2s for a free thread → **hidden coupling via
-    shared thread pool**. Understands this is where cascading failure starts and that
-    "increase the pool" is the wrong fix.
+### 3.1 Seeing the problem
+- Catalog has a chaos toggle `chaos.delay-ms` (0 = off). With a small Tomcat pool the owner ran
+  10 parallel POST /api/orders + 1 GET /api/orders/1 and saw POSTs queue in waves and the GET
+  (no catalog dependency) wait for a free thread: **hidden coupling via the shared thread pool**,
+  the start of cascading failure. "Increase the pool" is the wrong fix.
 
-### 3.2 Timeouts (done, committed as `resilience(timeout): ...`)
-- `CatalogClient` builds `RestClient` with `SimpleClientHttpRequestFactory`,
-  connect-timeout 500ms, read-timeout 2000ms (from `catalog.*` properties).
-- Owner understands connect vs read timeout and saw both: slow catalog → 503 after ~2s;
-  stopped catalog → 503 almost instantly.
-- Understands timeout *bounds* damage but does not *isolate* it (threads still busy, queue remains).
+### 3.2 Timeout — `resilience(timeout)`
+- `CatalogClient` uses `SimpleClientHttpRequestFactory`, connect 500ms / read 2000ms.
+- Understands connect vs read timeout, and at TCP level: connection refused (RST, process down),
+  connect timeout (no answer to SYN, host unreachable), read timeout (connected, no response, degraded).
+- Timeout bounds damage but does not isolate it.
 
-### 3.3 Retry (in progress — NOT yet verified)
-- Added `resilience4j-spring-boot3` 2.2.0 + `starter-aop` + `starter-actuator`.
-- `@Retry(name = "catalog")` on `CatalogClient.findProduct`.
-- yml: `resilience4j.retry.instances.catalog`: max-attempts 3, wait 200ms, exponential ×2,
-  retry-exceptions ResourceAccessException, ignore-exceptions HttpClientErrorException.
-- `api/ApiExceptionHandler` maps `ResourceAccessException` → 503.
-- `config/RetryEventLogger` logs onRetry/onError/onSuccess/onIgnoredError.
-- Owner understands: retry only for transient + idempotent + downstream-can-take-it;
-  retry on timeout is usually harmful (3× load on an already slow service); backoff + jitter;
-  3 attempts = 1 call + 2 retries; no log on first-try success.
+### 3.3 Retry — `resilience(retry)`
+- Resilience4j `@Retry(name = "catalog")`, 3 attempts, 200ms/400ms exponential backoff.
+- Mechanics understood: AOP proxy re-invokes the method; the only signal is an exception that
+  escapes the method (an inner catch that swallows it disables retry); no self-invocation.
+- Three conditions: transient + idempotent + does not hurt a slow service.
+- `CatalogRetryPredicate` (`retry-exception-predicate`): retry ONLY on connection refused
+  (`ResourceAccessException` with cause `ConnectException`), never on timeouts. Measured:
+  degraded catalog went from 6.9s/3 hits to 2s/1 hit per request.
+- Lesson learned the hard way: `retry-exceptions` is a list of exception classes, the predicate
+  needs its own key; list and predicate are OR-ed.
 
-**Open issue:** first test returned 503 in ~12ms with no retry log. Diagnosis given: a
-`catch (RestClientException)` inside `findProduct` was converting `ResourceAccessException`
-to `ResponseStatusException` before `@Retry` could see it. Owner says he removed it — **verify**:
-with catalog stopped, POST must take ~0.6s and log 3× "Calling catalog-service" + 2 WARN + 1 ERROR
-from RetryEventLogger.
+### 3.4 Circuit breaker — `resilience(circuit-breaker)`
+- `@CircuitBreaker(name = "catalog")`: COUNT_BASED window 10, minimum 5 calls, threshold 50%,
+  10s OPEN, 2 probes in HALF_OPEN, automatic transition, health indicator.
+- Understands CLOSED / OPEN / HALF_OPEN, sliding window vs minimum-number-of-calls, that each
+  retry attempt is a separate call for the breaker, probe cost, and that the window is cleared
+  after recovery. Observed via `/actuator/circuitbreakers`, `/circuitbreakerevents`, `/health`.
+- `CallNotPermittedException` → 503 in `ApiExceptionHandler`.
 
-Also done during this step: order-service repackaged (package-by-feature):
-`order/` (+`order/dto/`), `catalog/`, `messaging/` (+`messaging/event/`), `api/`, `config/`.
-Owner understands package-by-feature vs by-layer, and that this is DDD-friendly but not DDD.
+### 3.5 Bulkhead — `resilience(bulkhead)`
+- Semaphore `@Bulkhead(name = "catalog")`, `max-wait-duration: 0`; `BulkheadFullException` → 503
+  and listed in the breaker's `ignore-exceptions`.
+- Key insight: with catalog answering in 1.5s (below the timeout) timeout, retry and breaker all
+  see nothing, yet the pool starves. Only the bulkhead limits concurrency. Measured: GET /orders/1
+  no longer waits while POSTs are stuck. Rejected requests = load shedding / fail fast; the limit
+  must be sized from real load.
 
-### 3.4 Next (not started)
-1. Circuit breaker (Resilience4j `@CircuitBreaker` on the same method, sliding window, OPEN →
-   fail fast without calling catalog, HALF_OPEN probe; watch via `/actuator/circuitbreakers`).
-   Explain order of decorators (retry wraps CB or CB wraps retry — and why).
-2. Bulkhead (separate thread pool / semaphore for catalog calls) — the fix for the GET-waiting
-   observation; expected result: GET /orders/1 ~10ms while POSTs fail fast.
-3. Gateway circuit breaker (`spring-cloud-starter-circuitbreaker-reactor-resilience4j`) with
-   fallback → 503 + readable body instead of 500 Connection refused.
-4. Cleanup: remove `threads.max` override or keep with comment; chaos delay back to 0.
+### 3.6 Gateway — `resilience(gateway)`
+- `spring-cloud-starter-circuitbreaker-reactor-resilience4j`, one breaker per route
+  (`catalogCb`, `ordersCb`, `paymentsCb`) with `fallbackUri: forward:/fallback/{service}` → 503 JSON.
+- TimeLimiter raised to 3s (default 1s); outer timeout must exceed inner ones.
+- Understands: gateway breaker fires only when the gateway cannot reach a service; a 5xx produced
+  by the service itself passes through. Cold start explains a slow first request.
+- Generic `CircuitBreakerEventLogger` attaches to every breaker via `onEntryAdded`.
+
+## Step 4 — Data consistency (done, committed)
+
+Before this step the owner studied the RabbitMQ model in depth: exchange `shop.events` (topic),
+routing key vs binding key, queue per consumer, bindings declared by the consumer through
+`Queue`/`Binding` beans (RabbitAdmin, idempotent, never deletes), fan-out vs competing consumers,
+ack after processing, redelivery, at-least-once, consumer_timeout. Old queues must be deleted
+by hand when topology changes.
+
+Services were repackaged by layer (owner's preference, replaces package-by-feature):
+`api/rest (+dto)`, `client/<svc> (+dto)`, `config`, `domain`, `messaging/{config,event,listener,publisher}`,
+`repository`, `service`.
+
+### 4.1 Idempotent consumer — `consistency(idempotency)`
+- Reproduced: duplicate `payment.succeeded` decremented stock twice.
+- Fix: `processed_events(event_id PK)` + `insert ... on conflict do nothing` (`markProcessed`
+  returns 1 = new, 0 = duplicate) in the same transaction as the business change.
+- Event ids are deterministic (`payment-succeeded-<paymentId>`), never random, because a
+  redelivered trigger makes the publisher re-publish.
+
+### 4.2 Outbox — `consistency(outbox)`
+- Reproduced dual write: RabbitMQ down → 500 to client, order stuck in CREATED forever.
+- Fix in order-service: `outbox` table (status PENDING/PUBLISHED/FAILED + published_at, owner chose
+  an enum over a nullable timestamp), order + outbox row saved in one `TransactionTemplate` block
+  (catalog HTTP call stays outside the transaction), `OutboxPublisher` polls every 1s and sends raw
+  JSON with `rabbitTemplate.send`. Needs `@EnableScheduling`.
+- Understands: outbox is at-least-once, hence needs idempotent consumers; flows triggered by a
+  message self-heal through redelivery, flows triggered by an HTTP request need an outbox.
+
+### 4.3 Saga (choreography) — `consistency(saga)`
+- Reproduced overselling with two parallel orders on stock = 1.
+- Flow now: `order.created` → catalog reserves (atomic conditional UPDATE, all-or-nothing per order,
+  `stock_reservations` RESERVED/CONFIRMED/RELEASED) → `stock.reserved` → payment charges →
+  `payment.succeeded` (order PAID, catalog confirm) or `payment.failed` (order CANCELLED, catalog
+  release). `stock.rejected` → order CANCELLED without payment.
+- Understands choreography vs orchestration, that compensation is a new forward action and not a
+  rollback, that order → CANCELLED is also a compensation, and why refund would be the payment one.
+- Queues: `catalog-service.order-created`, `catalog-service.payment-succeeded`,
+  `catalog-service.payment-failed`, `payment-service.stock-reserved`, `order-service.events`.
+
+### 4.4 Optimistic locking — `consistency(optimistic-locking)`
+- Stock concurrency was already solved by the atomic conditional UPDATE (DB row lock re-checks the
+  WHERE clause), safe across threads and instances.
+- Reproduced a lost update instead: `PUT /api/products/{id}/price` (read-modify-write, Hibernate
+  dirty checking writes all columns) overwrote a concurrent reservation.
+- Fix: `@Version` on `Product` (column default 0), bulk `@Modifying` queries bump the version
+  themselves, `ObjectOptimisticLockingFailureException` → 409 Conflict.
+- Knows the limits: only protects within one request unless the version travels through the DTO;
+  for non-overlapping columns a targeted atomic update avoids the conflict altogether.
+
+### Next — Step 5: Observability
+Correlation id (gateway → MDC → RabbitMQ headers), structured JSON logging, distributed tracing
+(Micrometer Tracing + OpenTelemetry → Jaeger/Tempo), metrics (Actuator + Prometheus + Grafana:
+breaker state, outbox lag, queue depth, HTTP p99), readiness vs liveness.
+
+Known hardening left open on purpose: outbox in catalog/payment publishers, `SKIP LOCKED` for
+multi-instance outbox polling, outbox cleanup job, timeout job for stale RESERVED reservations,
+order state-transition guards.
+
+## Vocabulary agreement
+Explanations are in Uzbek (formal "siz"), but technical terms stay in English and are not
+translated: hit, down, up, degraded, behavior, observability, probe, probe cost, failure rate,
+fallback, load shedding, process (a message), compensation, etc.
 
 ## Teaching style that has worked
 
