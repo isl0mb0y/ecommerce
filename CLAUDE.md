@@ -31,5 +31,6 @@ Read `docs/LEARNING_LOG.md` first: it says what has already been understood and 
 - Resilience4j 2.2.0 on order-service; retry instance name `catalog`.
 
 ## Where we are
-Steps 1–4 are done (MVP, gateway, resilience, data consistency). Next: step 5, observability.
-See docs/LEARNING_LOG.md for what was built and understood in each step.
+Steps 1–5 are done (MVP, gateway, resilience, data consistency, observability).
+Next: step 6, Kafka & event-driven design. See docs/LEARNING_LOG.md for what was built and
+understood in each step.

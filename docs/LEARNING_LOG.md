@@ -136,14 +136,69 @@ Services were repackaged by layer (owner's preference, replaces package-by-featu
 - Knows the limits: only protects within one request unless the version travels through the DTO;
   for non-overlapping columns a targeted atomic update avoids the conflict altogether.
 
-### Next — Step 5: Observability
-Correlation id (gateway → MDC → RabbitMQ headers), structured JSON logging, distributed tracing
-(Micrometer Tracing + OpenTelemetry → Jaeger/Tempo), metrics (Actuator + Prometheus + Grafana:
-breaker state, outbox lag, queue depth, HTTP p99), readiness vs liveness.
+## Step 5 — Observability (done, committed)
 
-Known hardening left open on purpose: outbox in catalog/payment publishers, `SKIP LOCKED` for
-multi-instance outbox polling, outbox cleanup job, timeout job for stale RESERVED reservations,
-order state-transition guards.
+Framing the owner settled on first: observability = understanding the internal state of the system
+from its outputs. Logs say what happened, metrics say how much / how fast, traces say where a
+request went and where the time was spent. Monitoring answers known questions; observability
+lets you ask new ones.
+
+### 5.1 Correlation ID — `observability(correlation-id)` (two commits: HTTP, then async)
+- Gateway `filter/RequestIdFilter` (GlobalFilter) creates `X-Request-Id`, adds it to the request
+  and the response.
+- Each MVC service has its own `filter/RequestIdFilter` (OncePerRequestFilter): header → MDC
+  (`requestId`), cleared in `finally`. Log pattern `%5p [%X{requestId:-},%X{traceId:-}]`.
+- `CatalogClient` forwards the id with a RestClient interceptor.
+- RabbitMQ: `RabbitTemplateCustomizer` copies MDC → message header on publish; a custom
+  `rabbitListenerContainerFactory` copies header → MDC on receive (and removes it when absent).
+- Outbox: the id is stored in the `outbox` row and restored into MDC by `OutboxPublisher`, because
+  the scheduler thread has no request context.
+- Understands why the id was lost at each boundary: MDC is thread-bound.
+
+### 5.2 Structured logging — `observability(logging)`
+- `logstash-logback-encoder` + `logback-spring.xml` in the three services; JSON output only under
+  the `json` Spring profile, plain text otherwise. `service` field from `spring.application.name`.
+- `kv("orderId", ...)` appended as a trailing argument (no placeholder) to every log line that knows
+  the order, so text output is unchanged and JSON gains an `orderId` field.
+- `requestId` ties one request together; `orderId` ties the whole life of an order together.
+
+### 5.3 Distributed tracing — `observability(tracing)`
+- `micrometer-tracing-bridge-otel` + `opentelemetry-exporter-otlp` in all four apps,
+  `management.otlp.tracing.endpoint` → Jaeger (docker compose, UI on :16686), sampling 1.0.
+- RabbitMQ needs `setObservationEnabled(true)` on both the template and the listener factory.
+- Seen in Jaeger: sync trace gateway → order → catalog; async saga trace with the ~2s payment span
+  and the fan-out of `payment.succeeded`. The two are separate traces because of the outbox hop.
+- Noise handling: `ObservabilityConfig` drops `tasks.scheduled.execution` observations (the outbox
+  poller produced one empty trace per second). `GatewayObservationConvention` names gateway spans
+  by route id, since gateway routes have no handler pattern.
+- YAML lesson repeated: a mis-indented key (`management.tracing.otlp...`) is silently ignored.
+
+### 5.4 Metrics — `observability(metrics)` (two commits)
+- `micrometer-registry-prometheus`, `/actuator/prometheus`, `application` tag, HTTP histogram.
+- Prometheus (pull model, `docker/prometheus.yml`, targets via `host.docker.internal`) and Grafana
+  (host port 3001) in docker compose.
+- Custom gauge `outbox_pending` (`MeterBinder` + `countByStatus(PENDING)`).
+- Grafana dashboard with four panels: requests/s per service, order API p95, catalog circuit
+  breaker state, outbox pending. Watched all three failure drills on it (load, catalog down,
+  RabbitMQ down). Knows counter vs gauge vs timer, and that alerts are built on metrics.
+
+### 5.5 Health checks — `observability(health)`
+- `management.endpoint.health.probes.enabled`, groups: liveness = `livenessState`,
+  readiness = `readinessState, db`.
+- Rule understood: liveness never checks external dependencies; readiness checks only what this
+  service itself cannot work without. RabbitMQ is excluded thanks to the outbox, catalog thanks to
+  the circuit breaker. Verified: catalog down → both UP; Postgres down → liveness UP, readiness 503.
+- Kubernetes is not set up yet (step 9); the endpoints stand on their own until then.
+
+### Next — Step 6: Kafka & event-driven design
+Migrate messaging from RabbitMQ to Kafka (consumer groups, partitions, key = orderId, offsets,
+replay), then dead-letter/retry topics, schema evolution, CQRS read model, event sourcing (concept).
+Remaining afterwards: 7 auth & API design, 8 testing, 9 Kubernetes, 10 design questions.
+
+Left open on purpose: shipping logs to Loki/Grafana, carrying the trace context through the outbox
+(so the two traces become one), alert rules, persisting the Grafana dashboard, plus the hardening
+list from step 4 (outbox in catalog/payment, `SKIP LOCKED`, outbox cleanup, stale-reservation
+timeout, order state guards) and gateway rate limiting from step 2.
 
 ## Vocabulary agreement
 Explanations are in Uzbek (formal "siz"), but technical terms stay in English and are not
