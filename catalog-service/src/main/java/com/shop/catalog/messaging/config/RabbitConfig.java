@@ -22,11 +22,9 @@ public class RabbitConfig {
     public static final String EXCHANGE = "shop.events";
 
     public static final String PAYMENT_SUCCEEDED_QUEUE = "catalog-service.payment-succeeded";
-    public static final String ORDER_CREATED_QUEUE = "catalog-service.order-created";
     public static final String PAYMENT_FAILED_QUEUE = "catalog-service.payment-failed";
 
     public static final String PAYMENT_SUCCEEDED_KEY = "payment.succeeded";
-    public static final String ORDER_CREATED_KEY = "order.created";
     public static final String STOCK_RESERVED_KEY = "stock.reserved";
     public static final String STOCK_REJECTED_KEY = "stock.rejected";
     public static final String PAYMENT_FAILED_KEY = "payment.failed";
@@ -42,11 +40,6 @@ public class RabbitConfig {
     }
 
     @Bean
-    Queue orderCreatedQueue() {
-        return new Queue(ORDER_CREATED_QUEUE);
-    }
-
-    @Bean
     Queue paymentFailedQueue() {
         return new Queue(PAYMENT_FAILED_QUEUE);
     }
@@ -54,11 +47,6 @@ public class RabbitConfig {
     @Bean
     Binding paymentSucceededBinding(Queue paymentSucceededQueue, TopicExchange shopEventsExchange) {
         return BindingBuilder.bind(paymentSucceededQueue).to(shopEventsExchange).with(PAYMENT_SUCCEEDED_KEY);
-    }
-
-    @Bean
-    Binding orderCreatedBinding(Queue orderCreatedQueue, TopicExchange shopEventExchange) {
-        return BindingBuilder.bind(orderCreatedQueue).to(shopEventExchange).with(ORDER_CREATED_KEY);
     }
 
     @Bean

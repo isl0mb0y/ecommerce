@@ -13,6 +13,7 @@ import com.shop.order.client.catalog.dto.ProductResponse;
 import com.shop.order.domain.Order;
 import com.shop.order.domain.OutboxEvent;
 import com.shop.order.filter.RequestIdFilter;
+import com.shop.order.messaging.config.KafkaConfig;
 import com.shop.order.messaging.config.RabbitConfig;
 import com.shop.order.messaging.event.OrderCreated;
 import com.shop.order.api.rest.dto.CreateOrderRequest;
@@ -63,7 +64,11 @@ public class OrderService {
         Order saved = transactionTemplate.execute(status -> {
             Order persisted = orderRepository.save(order);
             OrderCreated event = OrderCreated.from(persisted);
-            outboxEventRepository.save(new OutboxEvent(RabbitConfig.ORDER_CREATED_KEY, toJson(event), MDC.get(RequestIdFilter.MDC_KEY)));
+            outboxEventRepository.save(new OutboxEvent(
+                    KafkaConfig.ORDER_CREATED_TOPIC,
+                    String.valueOf(persisted.getId()), // message key = orderId
+                    toJson(event),
+                    MDC.get(RequestIdFilter.MDC_KEY)));
             return persisted;
         });
 

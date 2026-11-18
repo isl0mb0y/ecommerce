@@ -15,6 +15,14 @@ spring:
       ddl-auto: update
   rabbitmq:
     host: localhost
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      acks: all
+      properties:
+        max.block.ms: 3000
+    template:
+      observation-enabled: true
 
 catalog:
   base-url: http://localhost:8081
