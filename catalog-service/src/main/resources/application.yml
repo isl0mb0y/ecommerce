@@ -30,9 +30,6 @@ spring:
     template:
       observation-enabled: true
 
-  rabbitmq:
-    host: localhost
-
 logging:
   level:
     com.shop: INFO

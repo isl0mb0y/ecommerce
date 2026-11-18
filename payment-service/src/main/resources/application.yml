@@ -28,8 +28,6 @@ spring:
       observation-enabled: true
     template:
       observation-enabled: true
-  rabbitmq:
-    host: localhost
 
 logging:
   level:
