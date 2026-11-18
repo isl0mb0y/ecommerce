@@ -6,15 +6,15 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import com.shop.payment.domain.Payment;
 import com.shop.payment.domain.PaymentStatus;
-import com.shop.payment.messaging.config.RabbitConfig;
+import com.shop.payment.messaging.config.KafkaConfig;
 import com.shop.payment.messaging.event.PaymentFailed;
 import com.shop.payment.messaging.event.PaymentSucceeded;
 import com.shop.payment.messaging.event.StockReserved;
+import com.shop.payment.messaging.publisher.EventPublisher;
 import com.shop.payment.repository.PaymentRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -23,16 +23,16 @@ public class StockReservedListener {
     private static final Logger log = LoggerFactory.getLogger(StockReservedListener.class);
 
     private final PaymentRepository paymentRepository;
-    private final RabbitTemplate rabbitTemplate;
+    private final EventPublisher eventPublisher;
 
-    public StockReservedListener(PaymentRepository paymentRepository, RabbitTemplate rabbitTemplate) {
+    public StockReservedListener(PaymentRepository paymentRepository, EventPublisher eventPublisher) {
         this.paymentRepository = paymentRepository;
-        this.rabbitTemplate = rabbitTemplate;
+        this.eventPublisher = eventPublisher;
     }
 
-    @RabbitListener(queues = RabbitConfig.STOCK_RESERVED_QUEUE)
+    @KafkaListener(topics = KafkaConfig.STOCK_RESERVED_TOPIC)
     public void onStockReserved(StockReserved event) throws InterruptedException {
-        log.info("Consumed {}: {}", RabbitConfig.STOCK_RESERVED_KEY, event, kv("orderId", event.orderId()));
+        log.info("Consumed {}: {}", KafkaConfig.STOCK_RESERVED_TOPIC, event, kv("orderId", event.orderId()));
         // A redelivered event reuses its payment, so the order is never charged twice.
         Payment payment = paymentRepository.findByOrderId(event.orderId()).orElse(null);
         if (payment == null) {
@@ -53,12 +53,10 @@ public class StockReservedListener {
         if (payment.getStatus() == PaymentStatus.SUCCESS) {
             String eventId = "payment-succeeded-" + payment.getId();
             PaymentSucceeded result = new PaymentSucceeded(eventId, event.orderId(), payment.getId());
-            rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE, RabbitConfig.PAYMENT_SUCCEEDED_KEY, result);
-            log.info("Published {}: {}", RabbitConfig.PAYMENT_SUCCEEDED_KEY, result, kv("orderId", event.orderId()));
+            eventPublisher.publish(KafkaConfig.PAYMENT_SUCCEEDED_TOPIC, event.orderId(), result);
         } else {
             PaymentFailed result = new PaymentFailed(event.orderId(), "Payment declined");
-            rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE, RabbitConfig.PAYMENT_FAILED_KEY, result);
-            log.info("Published {}: {}", RabbitConfig.PAYMENT_FAILED_KEY, result, kv("orderId", event.orderId()));
+            eventPublisher.publish(KafkaConfig.PAYMENT_FAILED_TOPIC, event.orderId(), result);
         }
     }
 }

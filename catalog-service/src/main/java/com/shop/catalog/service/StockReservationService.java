@@ -4,16 +4,16 @@ import static net.logstash.logback.argument.StructuredArguments.kv;
 
 import com.shop.catalog.domain.ReservationStatus;
 import com.shop.catalog.domain.StockReservation;
-import com.shop.catalog.messaging.config.RabbitConfig;
+import com.shop.catalog.messaging.config.KafkaConfig;
 import com.shop.catalog.messaging.event.OrderCreated;
 import com.shop.catalog.messaging.event.StockRejected;
 import com.shop.catalog.messaging.event.StockReserved;
+import com.shop.catalog.messaging.publisher.EventPublisher;
 import com.shop.catalog.repository.ProcessedEventRepository;
 import com.shop.catalog.repository.ProductRepository;
 import com.shop.catalog.repository.StockReservationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,13 +28,13 @@ public class StockReservationService {
     private final ProductRepository productRepository;
     private final StockReservationRepository reservationRepository;
     private final ProcessedEventRepository processedEventRepository;
-    private final RabbitTemplate rabbitTemplate;
+    private final EventPublisher eventPublisher;
 
-    public StockReservationService(ProductRepository productRepository, StockReservationRepository reservationRepository, ProcessedEventRepository processedEventRepository, RabbitTemplate rabbitTemplate) {
+    public StockReservationService(ProductRepository productRepository, StockReservationRepository reservationRepository, ProcessedEventRepository processedEventRepository, EventPublisher eventPublisher) {
         this.productRepository = productRepository;
         this.reservationRepository = reservationRepository;
         this.processedEventRepository = processedEventRepository;
-        this.rabbitTemplate = rabbitTemplate;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -50,8 +50,7 @@ public class StockReservationService {
             if (productRepository.decrementStock(item.productId(), item.quantity()) == 0) {
                 reserved.forEach(r -> productRepository.incrementStock(r.productId(), r.quantity()));
                 StockRejected rejected = new StockRejected("stock-rejected-" + orderId, orderId, "Insufficient stock for product " + item.productId());
-                rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE, RabbitConfig.STOCK_REJECTED_KEY, rejected);
-                log.info("Published {}: {}", RabbitConfig.STOCK_REJECTED_KEY, rejected, kv("orderId", orderId));
+                eventPublisher.publish(KafkaConfig.STOCK_REJECTED_TOPIC, orderId, rejected);
                 return;
             }
             reserved.add(item);
@@ -60,8 +59,8 @@ public class StockReservationService {
         reserved.forEach(i -> reservationRepository.save(
                 new StockReservation(orderId, i.productId(), i.quantity())));
         StockReserved result = new StockReserved("stock-reserved-" + orderId, orderId, event.totalInCents());
-        rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE, RabbitConfig.STOCK_RESERVED_KEY, result);
-        log.info("Published {}: {}", RabbitConfig.STOCK_RESERVED_KEY, result, kv("orderId", orderId));
+        eventPublisher.publish(KafkaConfig.STOCK_RESERVED_TOPIC, orderId, result);
+
     }
 
     @Transactional

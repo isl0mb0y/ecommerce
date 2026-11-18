@@ -21,6 +21,11 @@ spring:
       acks: all
       properties:
         max.block.ms: 3000
+    consumer:
+      group-id: order-service
+      auto-offset-reset: earliest
+    listener:
+      observation-enabled: true
     template:
       observation-enabled: true
 

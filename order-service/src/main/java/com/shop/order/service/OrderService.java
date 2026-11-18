@@ -14,7 +14,6 @@ import com.shop.order.domain.Order;
 import com.shop.order.domain.OutboxEvent;
 import com.shop.order.filter.RequestIdFilter;
 import com.shop.order.messaging.config.KafkaConfig;
-import com.shop.order.messaging.config.RabbitConfig;
 import com.shop.order.messaging.event.OrderCreated;
 import com.shop.order.api.rest.dto.CreateOrderRequest;
 import com.shop.order.api.rest.dto.OrderResponse;

@@ -1,10 +1,12 @@
 package com.shop.catalog.messaging.config;
 
 import com.shop.catalog.filter.RequestIdFilter;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.common.header.Header;
 import org.slf4j.MDC;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.listener.RecordInterceptor;
 import org.springframework.kafka.support.converter.RecordMessageConverter;
 import org.springframework.kafka.support.converter.StringJsonMessageConverter;
@@ -15,6 +17,10 @@ import java.nio.charset.StandardCharsets;
 public class KafkaConfig {
 
     public static final String ORDER_CREATED_TOPIC = "order.created";
+    public static final String STOCK_RESERVED_TOPIC = "stock.reserved";
+    public static final String STOCK_REJECTED_TOPIC = "stock.rejected";
+    public static final String PAYMENT_SUCCEEDED_TOPIC = "payment.succeeded";
+    public static final String PAYMENT_FAILED_TOPIC = "payment.failed";
 
     // Converts the JSON string payload into the listener's parameter type.
     @Bean
@@ -34,5 +40,15 @@ public class KafkaConfig {
             }
             return record;
         };
+    }
+
+    @Bean
+    NewTopic stockReservedTopic() {
+        return TopicBuilder.name(STOCK_RESERVED_TOPIC).partitions(3).replicas(1).build();
+    }
+
+    @Bean
+    NewTopic stockRejectedTopic() {
+        return TopicBuilder.name(STOCK_REJECTED_TOPIC).partitions(3).replicas(1).build();
     }
 }

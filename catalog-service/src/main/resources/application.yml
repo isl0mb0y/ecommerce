@@ -20,6 +20,16 @@ spring:
       auto-offset-reset: earliest
     listener:
       observation-enabled: true
+
+    producer:
+      acks: all
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        max.block.ms: 3000
+        spring.json.add.type.headers: false
+    template:
+      observation-enabled: true
+
   rabbitmq:
     host: localhost
 
